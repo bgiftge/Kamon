@@ -132,7 +132,8 @@ class SimpleMetricKeyGenerator(config: Config) extends StatsD.MetricKeyGenerator
     else application
 
   def generateKey(groupIdentity: MetricGroupIdentity, metricIdentity: MetricIdentity): String = {
-    val normalizedGroupName = groupIdentity.name.replace(": ", "-").replace(" ", "_").replace("/", "_")
+    val uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    val normalizedGroupName = groupIdentity.name.replaceAll(uuidPattern, "UUID").replace(": ", "-").replace(" ", "_").replace("/", "_")
     val key = s"${baseName}.${groupIdentity.category.name}.${normalizedGroupName}"
 
     if (isUserMetric(groupIdentity)) key
