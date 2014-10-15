@@ -22,7 +22,7 @@ import java.util
 import java.util.logging.Logger
 import java.util.{ ArrayList, Date, List }
 
-import org.hyperic.sigar.{ OperatingSystem, Sigar, SigarProxy }
+import org.hyperic.sigar._
 
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
@@ -135,10 +135,21 @@ object SigarLoader {
 
   private[sigar] def printBanner(sigar: Sigar) = {
     val os = OperatingSystem.getInstance
+    var loadAverageEnabled = true
 
     def loadAverage(sigar: Sigar) = {
-      val average = sigar.getLoadAverage
-      (average(0), average(1), average(2))
+      if (loadAverageEnabled) {
+        try {
+          val average = sigar.getLoadAverage
+          (average(0), average(1), average(2))
+        } catch {
+          case s: org.hyperic.sigar.SigarNotImplementedException ⇒ {
+            log.warning("Average load disabled: sigar.getLoadAverage not supported by OS")
+            loadAverageEnabled = false
+            (0, 0, 0)
+          }
+        }
+      }
     }
 
     def uptime(sigar: Sigar) = {
