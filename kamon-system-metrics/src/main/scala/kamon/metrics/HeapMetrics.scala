@@ -66,8 +66,7 @@ case object HeapMetricGroupFactory extends MetricGroupFactory {
   import HeapMetrics._
   import kamon.system.SystemMetricsExtension._
 
-  val memory = ManagementFactory.getMemoryMXBean
-  def heap = memory.getHeapMemoryUsage
+  def heap = ManagementFactory.getMemoryMXBean.getHeapMemoryUsage
 
   type GroupRecorder = HeapMetricRecorder
 
