@@ -16,15 +16,16 @@
 
 package kamon.play.instrumentation
 
-import org.aspectj.lang.annotation.{ Around, Pointcut, Aspect }
-import org.aspectj.lang.ProceedingJoinPoint
-import kamon.trace.TraceRecorder
+import kamon.Kamon
 import kamon.metric.TraceMetrics.HttpClientRequest
-import play.api.libs.ws.WSRequest
+import kamon.play.Play
+import kamon.trace.TraceRecorder
+import org.aspectj.lang.ProceedingJoinPoint
+import org.aspectj.lang.annotation.{ Around, Aspect, Pointcut }
+import play.api.libs.ws.ning.NingWSRequest
+import play.api.libs.ws.{ WSRequest, WSResponse }
+
 import scala.concurrent.Future
-import play.api.libs.ws.WSResponse
-import scala.util.{ Failure, Success }
-import scala.concurrent.ExecutionContext.Implicits.global
 
 @Aspect
 class WSInstrumentation {
@@ -34,27 +35,28 @@ class WSInstrumentation {
 
   @Around("onExecuteRequest(request)")
   def aroundExecuteRequest(pjp: ProceedingJoinPoint, request: WSRequest): Any = {
-    import WSInstrumentation._
 
-    val completionHandle = TraceRecorder.startSegment(HttpClientRequest(request.url), basicRequestAttributes(request))
+    import kamon.play.instrumentation.WSInstrumentation._
 
-    val response = pjp.proceed().asInstanceOf[Future[WSResponse]]
+    TraceRecorder.currentContext.map { ctx ⇒
+      val executor = Kamon(Play)(ctx.system).defaultDispatcher
+      val segmentHandle = TraceRecorder.startSegment(HttpClientRequest(request.url), basicRequestAttributes(request))
+      val response = pjp.proceed().asInstanceOf[Future[WSResponse]]
 
-    response.onComplete {
-      case Failure(t) ⇒ completionHandle.map(_.finish(Map("completed-with-error" -> t.getMessage)))
-      case Success(_) ⇒ completionHandle.map(_.finish(Map.empty))
-    }
-
-    response
+      response.map(result ⇒ segmentHandle.map(_.finish()))(executor)
+      response
+    }.getOrElse(pjp.proceed())
   }
 }
 
 object WSInstrumentation {
 
+  def uri(request: WSRequest): java.net.URI = request.asInstanceOf[NingWSRequest].builder.build().getURI
+
   def basicRequestAttributes(request: WSRequest): Map[String, String] = {
     Map[String, String](
-      "host" -> request.header("host").getOrElse("Unknown"),
-      "path" -> request.method)
+      "host" -> uri(request).getHost,
+      "path" -> uri(request).getPath,
+      "method" -> request.method)
   }
 }
-
